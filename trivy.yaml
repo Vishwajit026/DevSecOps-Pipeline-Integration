@@ -1,0 +1,18 @@
+# Trivy Vulnerability Scanner Configuration
+scan:
+  security-checks:
+    - vuln
+    - config
+    - secret
+
+severity:
+  - HIGH
+  - CRITICAL
+
+vulnerability:
+  type:
+    - os
+    - library
+
+ignore-unfixed: false
+exit-code: 0 # Set to 1 in strict deployment blocking environments

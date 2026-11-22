@@ -1,0 +1,34 @@
+{
+  "name": "devsecops-pipeline-integration",
+  "version": "1.0.0",
+  "description": "Production-grade automated DevSecOps CI/CD security pipeline with Secret Scanning, SAST, SCA, and Container Hardening",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/app.test.js",
+    "security:audit": "npm audit --audit-level=high"
+  },
+  "keywords": [
+    "devsecops",
+    "ci-cd",
+    "github-actions",
+    "sast",
+    "sca",
+    "secret-scanning",
+    "trivy",
+    "semgrep",
+    "trufflehog",
+    "cybersecurity"
+  ],
+  "author": "Vishwajit Rawlo",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
