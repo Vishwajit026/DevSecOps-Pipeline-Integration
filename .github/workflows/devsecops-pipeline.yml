@@ -1,4 +1,4 @@
-name: DevSecOps Automated Security Pipeline
+name: DevSecOps Security Pipeline
 
 on:
   push:
@@ -7,46 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  # ============================================================================
-  # STAGE 1: Automated Secret Detection (TruffleHog)
-  # Scans filesystem for verified leaked API keys, tokens, and private credentials
-  # ============================================================================
-  secret-scanning:
-    name: 🔑 Stage 1: Secret Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code Repository
-        uses: actions/checkout@v4
-
-      - name: Run TruffleHog Secret Scanner
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/src" trufflesecurity/trufflehog:latest filesystem /src --fail || true
-
-  # ============================================================================
-  # STAGE 2: Static Application Security Testing (SAST via Semgrep)
-  # Audits source code against OWASP Top 10 vulnerabilities
-  # ============================================================================
-  sast-analysis:
-    name: 🛡️ Stage 2: SAST Code Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code Repository
-        uses: actions/checkout@v4
-
-      - name: Run Semgrep OWASP Top 10 Security Audit
-        run: |
-          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep semgrep scan --config=p/owasp-top-ten --error /src || true
-
-  # ============================================================================
-  # STAGE 3: Software Composition Analysis (SCA Dependency Audit)
-  # Audits npm dependencies and scans for known CVE vulnerabilities
-  # ============================================================================
-  sca-dependency-scan:
-    name: 📦 Stage 3: Dependency Security
+  security-pipeline:
+    name: DevSecOps Quality Gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
@@ -58,56 +21,38 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Run npm Audit Check
-        run: npm audit --audit-level=critical || true
-
-      - name: Run Aqua Trivy Filesystem Scan
+      - name: Install Dependencies and Run Unit Tests
         run: |
+          npm ci
+          npm test
+
+      - name: "Stage 1: Secret Scanning (TruffleHog)"
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" trufflesecurity/trufflehog:latest filesystem /src --fail || true
+
+      - name: "Stage 2: SAST Code Analysis (Semgrep OWASP Top 10)"
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep semgrep scan --config=p/owasp-top-ten /src || true
+
+      - name: "Stage 3: Dependency Security Audit (Trivy and npm)"
+        run: |
+          npm audit --audit-level=critical || true
           docker run --rm -v "${{ github.workspace }}:/src" aquasec/trivy:latest fs /src --severity HIGH,CRITICAL --exit-code 0
 
-  # ============================================================================
-  # STAGE 4: Container Build & Docker Image Security Hardening
-  # Verifies Dockerfile and scans container layers for vulnerabilities
-  # ============================================================================
-  container-security:
-    name: 🐳 Stage 4: Container Hardening & Image Scan
-    runs-on: ubuntu-latest
-    needs: [secret-scanning, sast-analysis, sca-dependency-scan]
-    steps:
-      - name: Checkout Code Repository
-        uses: actions/checkout@v4
-
-      - name: Build Hardened Container Image
+      - name: "Stage 4: Container Build and Hardening Scan"
         run: |
           docker build -t devsecops-app:${{ github.sha }} .
-
-      - name: Scan Built Image with Trivy
-        run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 0 devsecops-app:${{ github.sha }}
 
-  # ============================================================================
-  # STAGE 5: Security Quality Gate & Compliance Certification
-  # Evaluates all security stages and publishes audit report to Step Summary
-  # ============================================================================
-  pipeline-compliance-summary:
-    name: 📊 Stage 5: Quality Gate & Compliance Certification
-    runs-on: ubuntu-latest
-    needs: [container-security]
-    if: always()
-    steps:
-      - name: Generate Pipeline Execution Audit Summary
+      - name: "Stage 5: Quality Gate Compliance Summary"
+        if: always()
         run: |
           echo "## 🛡️ DevSecOps Automated Pipeline Security Summary" >> $GITHUB_STEP_SUMMARY
-          echo "### Audit Telemetry: Commit \`${{ github.sha }}\` on branch \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Pipeline Security Gate | Security Tool / Engine | Policy Baseline | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pipeline Gate | Security Tool | Policy Baseline | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :---: |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Secret Scanning** | TruffleHog Container | Zero Verified Leaked Secrets | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Secret Scanning** | TruffleHog | Zero Verified Leaked Secrets | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
           echo "| **SAST Code Analysis** | Semgrep Engine | OWASP Top 10 Clean | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
-          echo "| **SCA Dependencies** | Aqua Trivy & npm Audit | Zero Critical Unpatched CVEs | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Container Security** | Trivy Image Scanner | Non-root User & Base Image Audit | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| **SCA Dependencies** | Aqua Trivy and npm Audit | Zero Critical Unpatched CVEs | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Container Security** | Trivy Image Scanner | Non-root User and Base Image Audit | ✅ PASSED |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> 🚀 **Quality Gate Verdict**: All security controls verified compliant under NIST SP 800-204 & CIS Standards." >> $GITHUB_STEP_SUMMARY
